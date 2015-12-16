@@ -128,7 +128,7 @@ void time_to_showstring(char* buffer, size_t buffersize, caltime_t time, caltime
 	
 	//Catch times that are not on relative_to (and not on the day after, but early in the night), show their date instead
 	if (caltime_to_date_only(relative_to) != caltime_to_date_only(time) && !(caltime_get_tomorrow(relative_to) == caltime_to_date_only(time) && caltime_get_hour(time) < 3)) { //show weekday instead of time
-		static char *daystrings[7] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+		static char *daystrings[7] = {"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"};
 		snprintf(buffer, buffersize, "%s", daystrings[caltime_get_weekday(time)]);
 	}
 	else if (relative_time && time>=relative_to && time-relative_to <= 60) { //show relative time ("in 5 minutes"). Condition implies that they're on the same day
@@ -216,8 +216,8 @@ int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relativ
 
 //Creates separator (like the "Monday" layer, separating today's items from tomorrow's), returns y+[own height]
 int create_day_separator_layer(int i, int y, Layer* parent, caltime_t day) {
-	static char *daystrings[8] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Tomorrow"};
-	static char *monthstrings[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+	static char *daystrings[8] = {"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche", "Demain"};
+	static char *monthstrings[12] = {"Jan", "Fév", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"};
 	
 	//Set text
 	day_separator_texts[i] = malloc(sizeof(char)*20);
@@ -715,6 +715,8 @@ void click_config_provider(void *context) {
 //Create all necessary structures, etc.
 void handle_init(void) {
 	//Init window
+
+  setlocale(LC_ALL, "fr_FR");
 	window = window_create();
 	window_stack_push(window, true);
  	window_set_background_color(window, GColorBlack);
