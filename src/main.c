@@ -704,7 +704,14 @@ void vibrate(uint8_t type) {
 			break;
 	}
 }
+void handle_backbutton_click(ClickRecognizerRef recognizer, void *context) {
+	// do nothing, to prevent exiting the app (except long press of back button)
+}
 
+void click_config_provider(void *context) {
+  window_single_click_subscribe(BUTTON_ID_BACK, handle_backbutton_click);
+  window_multi_click_subscribe(BUTTON_ID_BACK, 2, 2, 300, true, handle_backbutton_click);
+}
 //Create all necessary structures, etc.
 void handle_init(void) {
 	//Init window
@@ -734,6 +741,7 @@ void handle_init(void) {
 	tick_timer_service_subscribe(MINUTE_UNIT, &handle_time_tick);
 	battery_state_service_subscribe(&handle_battery);
 	bluetooth_connection_service_subscribe(bluetooth_connection_callback);
+	window_set_click_config_provider(window, (ClickConfigProvider) click_config_provider);
 	
 	//Register for communication events
 	app_message_register_inbox_received(in_received_handler);	
