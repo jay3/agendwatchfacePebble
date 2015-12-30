@@ -7,6 +7,9 @@
 #include <main.h>
 	
 #define DAY_SEPARATOR false
+#define WAKE_INIT 1
+#define WAKE_DEINIT 2
+#define WAKE_HANDLER 3
 
 time_t last_sync = 0; //time where the last successful sync happened
 uint8_t last_sync_id = 0; //id that the phone supplied for the last successful sync
@@ -748,6 +751,24 @@ void click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_BACK, handle_backbutton_click);
   window_multi_click_subscribe(BUTTON_ID_BACK, 2, 2, 300, true, handle_backbutton_click);
 }
+void schedule_relaunch_app(int32_t reason) {
+  wakeup_cancel_all();
+  int delay;
+  if (reason == WAKE_DEINIT) {
+    // normal exit, relaunch "immedialtely"
+    delay = 20;
+  } else {
+    // app crash
+    delay = 300;
+  }
+  wakeup_schedule(time(NULL) + delay, reason, false);
+}
+
+static void wakeup_handler(WakeupId id, int32_t reason) {
+  //APP_LOG(APP_LOG_LEVEL_DEBUG, "wakeup_handler %ld %ld", id, reason);
+  schedule_relaunch_app(WAKE_HANDLER);
+}
+
 //Create all necessary structures, etc.
 void handle_init(void) {
 	//Init window
@@ -780,7 +801,9 @@ void handle_init(void) {
 	battery_state_service_subscribe(&handle_battery);
 	bluetooth_connection_service_subscribe(bluetooth_connection_callback);
 	window_set_click_config_provider(window, (ClickConfigProvider) click_config_provider);
-	
+  // Subscribe to Wakeup API
+  wakeup_service_subscribe(wakeup_handler);
+
 	//Register for communication events
 	app_message_register_inbox_received(in_received_handler);	
 	app_message_register_inbox_dropped(in_dropped_handler);
@@ -791,10 +814,16 @@ void handle_init(void) {
 	const uint32_t inbound_size = 124; //should be the max value
 	const uint32_t outbound_size = 64; //we don't send much
 	app_message_open(inbound_size, outbound_size);
+
+  // schedule a relaunch (exit in case of a crash)
+	schedule_relaunch_app(WAKE_INIT);
 }
 
 //Destroy what handle_init() created
 void handle_deinit(void) {
+
+  schedule_relaunch_app(WAKE_DEINIT);
+
 	//Unsubscribe callbacks
 	accel_tap_service_unsubscribe();
 	accel_data_service_unsubscribe();
