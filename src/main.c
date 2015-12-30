@@ -6,6 +6,8 @@
 #include <persist_const.h>
 #include <main.h>
 	
+#define DAY_SEPARATOR false
+
 time_t last_sync = 0; //time where the last successful sync happened
 uint8_t last_sync_id = 0; //id that the phone supplied for the last successful sync
 caltime_t refresh_at = 0; //time where the item display should be refreshed next
@@ -18,7 +20,10 @@ char **item_texts = 0; //list of texts. item_text[i] corresponds to item_layer[i
 //Font according to settings
 GFont font; //font to use for items (and separators)
 GFont font_bold; //corresponding bold font
+GFont font0;
+GFont font_bold0;
 int line_height = 0; //will contain height of a line (row) in an item (depends on chosen font height)
+int line_height0 = 0;
 int font_index; //contains a two-bit number for the chosen font according to the settings
 
 int num_separators = 0; //number of separators. As many elements will be in the day_separator_layers array
@@ -74,6 +79,7 @@ void sync_layer_set_progress(int now, int max) {
 //Set font variables (font, font_bold, line_height) according to settings
 void set_font_from_settings() {
 	font_index = (int) ((settings_get_bool_flags() & (SETTINGS_BOOL_FONT_SIZE0|SETTINGS_BOOL_FONT_SIZE1))/SETTINGS_BOOL_FONT_SIZE0); //figure out index of the font from settings (two-bit number)
+	font_index = 1;
 	switch (font_index) {
 		case 1:
 			font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
@@ -94,21 +100,25 @@ void set_font_from_settings() {
 			line_height = 16;
 		break;
 	}
+	font0 = fonts_get_system_font(FONT_KEY_GOTHIC_24);
+	font_bold0 = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+	line_height0 = 28;
 }
 
 //Calculate from settings how much horizontal space the time layer should take. I know I could let Pebble measure the text width, but I want this offset to be constant for a consistent look
-int get_item_text_offset(uint8_t row_design, uint8_t number_of_times, bool append_am_pm) { //wants the row design
+int get_item_text_offset(uint8_t row_design, uint8_t number_of_times, bool append_am_pm, bool first) { //wants the row design
 	if ((row_design/ROW_DESIGN_TIME_TYPE_OFFSET)%0x8 == 0) //no time displayed
 		return 0;
 	
-	int result = font_index == 2 ? 45 : font_index == 1 ? 35 : 28; //start with basic width
+	int result = (first || font_index == 2) ? 45 : font_index == 1 ? 35 : 28; //start with basic width
 	if (append_am_pm) //add some if am/pm is displayed
 		result+= font_index == 2 ? 20 : font_index == 1 ? 17 : 15;
 	if (number_of_times > 1) { //twice that if actually two times are displayed (like "19:00-20:00")
 		result*=2;
 	} 
 	
-	result += font_index == 2 ? 13 : font_index == 1 ? 11 : 9; //add some more
+	//result += font_index == 2 ? 13 : font_index == 1 ? 11 : 9; //add some more
+	result += 2; //add some more
 	
 	return result;
 }
@@ -125,7 +135,7 @@ void time_to_showstring(char* buffer, size_t buffersize, caltime_t time, caltime
 		buffersize--;
 		buffer++; //advance pointer by the byte we just added
 	}
-	
+
 	//Catch times that are not on relative_to (and not on the day after, but early in the night), show their date instead
 	if (caltime_to_date_only(relative_to) != caltime_to_date_only(time) && !(caltime_get_tomorrow(relative_to) == caltime_to_date_only(time) && caltime_get_hour(time) < 3)) { //show weekday instead of time
 		static char *daystrings[7] = {"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"};
@@ -147,10 +157,13 @@ void time_to_showstring(char* buffer, size_t buffersize, caltime_t time, caltime
 }
 
 //Creates the necessary layers for an item. Returns y+[height that the new layers take]. Every item has up to two rows, both consisting of a time and a text portion (either may be empty)
-int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relative_to, bool relative_time) { //relative_to and relative_time as used in time_to_showstring(...)
+int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relative_to, bool relative_time, bool first) { //relative_to and relative_time as used in time_to_showstring(...)
 	//Get settings
 	uint32_t settings = settings_get_bool_flags();
+
+  //APP_LOG(APP_LOG_LEVEL_DEBUG, "create_item_layers %s %s %d %d %d", item->row1text, item->row2text, item->row1design, item->row2design, num_layers);
 	
+  int cur_line_height = first ? line_height0 : line_height;
 	//Create the row(s)
 	for (int row=0; row<2; row++) {
 		if (row == 1 && item->row2design == 0) //skip second row if design says so
@@ -161,11 +174,13 @@ int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relativ
 		uint8_t design_time = (row_design/ROW_DESIGN_TIME_TYPE_OFFSET)%0x8;
 		uint8_t row_overflow = (row_design/ROW_DESIGN_TEXT_OVERFLOW_OFFSET)%0x4;
 		char* row_text = row == 0 ? item->row1text : item->row2text;
+		int vertical_offset = first ? 4 : 2;
+		//vertical_offset = 0;
 		
 		//Figure out height of this line and the width of the time
-		int time_layer_width = get_item_text_offset(row_design, design_time==3 ? 2 : 1, (settings & SETTINGS_BOOL_12H) && (settings & SETTINGS_BOOL_AMPM) ? 1 : 0); //desired width of time layer
+		int time_layer_width = get_item_text_offset(row_design, design_time==3 ? 2 : 1, (settings & SETTINGS_BOOL_12H) && (settings & SETTINGS_BOOL_AMPM) ? 1 : 0, first); //desired width of time layer
 		int line_height_factor = row_overflow == 2 ? 2 : 1;
-		if (row_overflow == 1 && graphics_text_layout_get_content_size(row_text, row_design & ROW_DESIGN_TEXT_BOLD ? font_bold : font, GRect(time_layer_width,y,144-time_layer_width,line_height*2), GTextOverflowModeFill, GTextAlignmentLeft).h > line_height)  //row_overflow == 1: overflow if necessary
+		if (row_overflow == 1 && graphics_text_layout_get_content_size(row_text, first ? (row == 0 ? font_bold0 : font0) : (row_design & ROW_DESIGN_TEXT_BOLD ? font_bold : font), GRect(time_layer_width,y,144-time_layer_width,cur_line_height*2), GTextOverflowModeFill, GTextAlignmentLeft).h > cur_line_height)  //row_overflow == 1: overflow if necessary
 			line_height_factor = 2;
 		
 		//Create time text and layer
@@ -183,13 +198,19 @@ int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relativ
 				time_to_showstring(item_texts[num_layers]+strlen(item_texts[num_layers]), 10, item->end_time, relative_to, relative_time && get_current_time() >= item->start_time, settings & SETTINGS_BOOL_12H ? 1 : 0, (settings & SETTINGS_BOOL_12H) && (settings & SETTINGS_BOOL_AMPM) ? 1 : 0, true);
 		
 			//Create time layer
-			TextLayer *layer = text_layer_create(GRect(0,y,time_layer_width,line_height*line_height_factor));
+			TextLayer *layer = text_layer_create(GRect(0,y,time_layer_width,cur_line_height*line_height_factor));
 			text_layer_set_background_color(layer, GColorWhite);
 			text_layer_set_text_color(layer, GColorBlack);
-			text_layer_set_font(layer, font);
+			text_layer_set_font(layer, first ? font0 : font);
 			text_layer_set_text(layer, item_texts[num_layers]);
 			layer_add_child(parent, text_layer_get_layer(layer));
 			item_layers[num_layers++] = layer;
+
+	    // remove offset
+			GRect r = layer_get_bounds(text_layer_get_layer(layer));
+			r.origin.y -= vertical_offset;
+	    layer_set_bounds(text_layer_get_layer(layer), r);
+
 		}
 		
 		//Create text layer
@@ -198,17 +219,23 @@ int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relativ
 			text = row_text; //set the reference to the text saved in the event struct
 		item_texts[num_layers] = 0; //no reference in item_texts for this layer (as the text should not be freed when tidying up UI, only by the database)
 		
-		TextLayer *layer = text_layer_create(GRect(time_layer_width,y,144-time_layer_width,line_height*line_height_factor));
+		TextLayer *layer = text_layer_create(GRect(time_layer_width,y,144-time_layer_width,cur_line_height*line_height_factor));
 		text_layer_set_background_color(layer, GColorWhite);
+		//text_layer_set_background_color(layer, first ? (row == 0 ? GColorRed : GColorGreen) : GColorBlue);
 		text_layer_set_text_color(layer, GColorBlack);
-		text_layer_set_font(layer, row_design & ROW_DESIGN_TEXT_BOLD ? font_bold : font);
+		text_layer_set_font(layer, first ? (row == 0 ? font_bold0 : font0) : (row_design & ROW_DESIGN_TEXT_BOLD ? font_bold : font));
 		text_layer_set_overflow_mode(layer, GTextOverflowModeFill);
 		if (text != 0)
 			text_layer_set_text(layer, text);
 		layer_add_child(parent, text_layer_get_layer(layer));
 		item_layers[num_layers++] = layer;
 		
-		y+=line_height*line_height_factor; //add this line's height to y for return value
+		// remove offset
+		GRect r = layer_get_bounds(text_layer_get_layer(layer));
+		r.origin.y -= vertical_offset;
+		layer_set_bounds(text_layer_get_layer(layer), r);
+
+		y+=cur_line_height*line_height_factor - 2*vertical_offset; //add this line's height to y for return value
 	}
 	
 	return y; //screen offset where this item's layers end
@@ -263,6 +290,7 @@ void display_data() { //(Re-)creates all the layers for items in the database an
 	caltime_t last_separator_date = now; //the date of the last day separator (so that times can be shown relative to that)
 	caltime_t tomorrow_date = caltime_get_tomorrow(now);
 
+	int position = 0;
 	for (int i=0;i<db_size();i++) {
 		AgendaItem* item = db_get(i);
 		if (item->end_time != 0 && item->end_time < now) { //skip those that we shouldn't display
@@ -273,19 +301,25 @@ void display_data() { //(Re-)creates all the layers for items in the database an
 		//Check if we need a date separator
 		if ((previous_item == 0 && caltime_to_date_only(item->start_time) >= tomorrow_date) //first item doesn't begin before tomorrow
 			|| (previous_item != 0 && caltime_to_date_only(previous_item->start_time) != caltime_to_date_only(item->start_time) && caltime_to_date_only(item->start_time) >= tomorrow_date)) { //it's not the first item, but the previous one belonged to another date and this one doesn't start until tomorrow
-			y = create_day_separator_layer(num_separators, y, window_layer, item->start_time);
+#if DAY_SEPARATOR
+		  y = create_day_separator_layer(num_separators, y, window_layer, item->start_time);
+#endif
 			last_separator_date = item->start_time;
 			num_separators++;
 		}
 		
 		//Add item layers
-		y = create_item_layers(y, window_layer, item, last_separator_date, (settings_get_bool_flags() & SETTINGS_BOOL_COUNTDOWNS) && num_separators == 0)+1;
+		y = create_item_layers(y, window_layer, item, last_separator_date, (settings_get_bool_flags() & SETTINGS_BOOL_COUNTDOWNS) && num_separators == 0, position == 0)+1;
 		
 		//refresh_at is set by time_to_showstring() for shown times. Make sure that items disappear after their expiration even when not showing the time
 		if (item->end_time != 0)
 			set_refresh_at_if_decrease(item->end_time);
 		
 		previous_item = item;
+		position++;
+		if (position == 2) {
+		  break;
+		}
 	}
 	
 	items_biggest_y = y;
@@ -298,22 +332,24 @@ void remove_displayed_data() { //tidies up anything that display_data() created
 		if (item_texts[i] != 0)
 			free(item_texts[i]);
 	}
+#if DAY_SEPARATOR
 	for (int i=0;i<num_separators;i++) {
 		text_layer_destroy(day_separator_layers[i]);
 		free(day_separator_texts[i]);
 	}
-	
+#endif
 	num_layers = 0;
 	num_separators = 0;
 	if (item_layers != 0)
 		free(item_layers);
 	if (item_texts != 0)
 		free(item_texts);
+#if DAY_SEPARATOR
 	if (day_separator_layers != 0)
 		free(day_separator_layers);
 	if (day_separator_texts != 0)
 		free(day_separator_texts);
-	
+#endif
 	item_layers = 0;
 	item_texts = 0;
 	day_separator_layers = 0;
