@@ -85,7 +85,6 @@ void sync_layer_set_progress(int now, int max) {
 //Set font variables (font, font_bold, line_height) according to settings
 void set_font_from_settings() {
 	font_index = (int) ((settings_get_bool_flags() & (SETTINGS_BOOL_FONT_SIZE0|SETTINGS_BOOL_FONT_SIZE1))/SETTINGS_BOOL_FONT_SIZE0); //figure out index of the font from settings (two-bit number)
-	font_index = 1;
 	switch (font_index) {
 		case 1:
 			font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
@@ -168,7 +167,11 @@ int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relativ
 	uint32_t settings = settings_get_bool_flags();
 
   //APP_LOG(APP_LOG_LEVEL_DEBUG, "create_item_layers %s %s %d %d %d", item->row1text, item->row2text, item->row1design, item->row2design, num_layers);
-	
+#if FORCE_SETTINGS
+  item->row1design = 51;
+  item->row2design = 65;
+#endif
+
   int cur_line_height = first ? line_height0 : line_height;
 	//Create the row(s)
 	for (int row=0; row<2; row++) {

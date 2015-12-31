@@ -17,7 +17,14 @@ void settings_restore_persisted() { //restores settings from persistent storage 
 }
 
 uint32_t settings_get_bool_flags() { //getter for general settings (details in settings.h)
-	return boolean_flags;
+
+  uint32_t ret = boolean_flags;
+  //SETTINGS_BOOL_LIMIT_PERSIST
+#if FORCE_SETTINGS
+  ret = SETTINGS_BOOL_SHOW_CLOCK_HEADER | SETTINGS_BOOL_FONT_SIZE0 | SETTINGS_BOOL_HEADER_SIZE0 | SETTINGS_BOOL_COUNTDOWNS;
+#endif
+  //APP_LOG(APP_LOG_LEVEL_DEBUG, "%lx > %lx", boolean_flags, ret);
+	return ret;
 }
 
 void settings_set(uint32_t flags) { // Will callback to main.h and persist on changes

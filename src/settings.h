@@ -2,7 +2,9 @@
 	
 #ifndef SETTINGS_H
 #define SETTINGS_H
-	
+
+#define FORCE_SETTINGS true
+
 //Show the header with date and clock?
 #define SETTINGS_BOOL_SHOW_CLOCK_HEADER 0x01
 
