@@ -9,7 +9,8 @@
 #define DAY_SEPARATOR false
 #define WAKE_INIT 1
 #define WAKE_DEINIT 2
-#define WAKE_HANDLER 3
+#define WAKE_RESCHEDULE 3
+bool auto_relaunch = true;
 
 time_t last_sync = 0; //time where the last successful sync happened
 uint8_t last_sync_id = 0; //id that the phone supplied for the last successful sync
@@ -42,6 +43,8 @@ TextLayer *text_layer_time = 0; //layer for the current time (if header enabled 
 TextLayer *text_layer_date = 0; //layer for current date (if header enabled)
 TextLayer *text_layer_weekday = 0; //layer for current weekday (if header enabled)
 TextLayer *sync_indicator_layer = 0; //sync indicator
+
+TextLayer *text_layer_popup = 0;
 
 PropertyAnimation *scroll_animation = 0; //current scrolling animation or 0
 AppTimer* scroll_reset_timer = 0; //timer handle to reset scroll position after some time
@@ -533,7 +536,7 @@ void create_header(Layer *window_layer) {
 		text_layer_set_overflow_mode(text_layer_weekday, GTextOverflowModeWordWrap);
 		text_layer_set_font(text_layer_weekday, date_font);
 		layer_add_child(window_layer, text_layer_get_layer(text_layer_weekday));
-		
+
 		//Show initial values
 		update_clock();
 		time_t t = time(NULL);
@@ -743,16 +746,12 @@ void vibrate(uint8_t type) {
 			break;
 	}
 }
-void handle_backbutton_click(ClickRecognizerRef recognizer, void *context) {
-	// do nothing, to prevent exiting the app (except long press of back button)
-}
 
-void click_config_provider(void *context) {
-  window_single_click_subscribe(BUTTON_ID_BACK, handle_backbutton_click);
-  window_multi_click_subscribe(BUTTON_ID_BACK, 2, 2, 300, true, handle_backbutton_click);
-}
 void schedule_relaunch_app(int32_t reason) {
   wakeup_cancel_all();
+  if (!auto_relaunch) {
+      return;
+  }
   int delay;
   if (reason == WAKE_DEINIT) {
     // normal exit, relaunch "immedialtely"
@@ -761,12 +760,87 @@ void schedule_relaunch_app(int32_t reason) {
     // app crash
     delay = 300;
   }
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Schedule relaunch in %d seconds", delay);
   wakeup_schedule(time(NULL) + delay, reason, false);
 }
 
+
 static void wakeup_handler(WakeupId id, int32_t reason) {
   //APP_LOG(APP_LOG_LEVEL_DEBUG, "wakeup_handler %ld %ld", id, reason);
-  schedule_relaunch_app(WAKE_HANDLER);
+  schedule_relaunch_app(WAKE_RESCHEDULE);
+}
+
+static AppTimer *popup_timer = NULL;
+void popup_destroy() {
+  if (popup_timer != NULL) {
+    app_timer_cancel(popup_timer);
+    popup_timer = NULL;
+  }
+  if (text_layer_popup) {
+    text_layer_destroy(text_layer_popup);
+    text_layer_popup = NULL;
+  }
+}
+static void popup_timer_callback(void *data) {
+  popup_timer = NULL;
+  popup_destroy();
+}
+void popup_create() {
+  static char popup_text[200] = "Test";
+
+  popup_destroy();
+
+  caltime_t now = get_current_time();
+  int elements_in_future = 0;
+  for (int i=0;i<db_size();i++) {
+    AgendaItem* item = db_get(i);
+    if (item->start_time != 0 && item->start_time < now) {
+      continue;
+    }
+    elements_in_future++;
+  }
+
+  snprintf(popup_text, sizeof(popup_text),
+    "Bluetooth: %s\nBattery: %d %%\nItems: %d/%d\nAuto-relaunch: %s",
+    bluetooth_connection_service_peek() ? "yes" : "no",
+    battery_state_service_peek().charge_percent,
+    elements_in_future, db_size(),
+    auto_relaunch ? "yes" : "no"
+  );
+
+  //Create popup layer
+  text_layer_popup = text_layer_create(layer_get_bounds(window_get_root_layer(window)));
+  text_layer_set_background_color(text_layer_popup, GColorWhite);
+  text_layer_set_text_color(text_layer_popup, GColorBlack);
+  text_layer_set_text_alignment(text_layer_popup, GTextAlignmentLeft);
+  text_layer_set_overflow_mode(text_layer_popup, GTextOverflowModeWordWrap);
+  text_layer_set_font(text_layer_popup, font0);
+  layer_add_child(window_get_root_layer(window), text_layer_get_layer(text_layer_popup));
+  text_layer_set_text(text_layer_popup, popup_text);
+
+  popup_timer = app_timer_register(3000, popup_timer_callback, NULL);
+}
+void handle_selectbutton_longclick(ClickRecognizerRef recognizer, void *context) {
+  popup_create();
+}
+void handle_upbutton_longclick(ClickRecognizerRef recognizer, void *context) {
+  if (text_layer_popup) {
+    // only if popup is already here
+    auto_relaunch = !auto_relaunch;
+    persist_write_bool(PERSIST_AUTO_RELAUNCH, auto_relaunch);
+    schedule_relaunch_app(WAKE_RESCHEDULE);
+    popup_create();
+  }
+}
+void handle_backbutton_click(ClickRecognizerRef recognizer, void *context) {
+  // do nothing, to prevent exiting the app (except long press of back button)
+}
+
+void click_config_provider(void *context) {
+  window_single_click_subscribe(BUTTON_ID_BACK, handle_backbutton_click);
+  window_multi_click_subscribe(BUTTON_ID_BACK, 2, 2, 300, true, handle_backbutton_click);
+  window_long_click_subscribe(BUTTON_ID_SELECT, 500, handle_selectbutton_longclick, NULL);
+  window_long_click_subscribe(BUTTON_ID_UP, 500, handle_upbutton_longclick, NULL);
 }
 
 //Create all necessary structures, etc.
@@ -787,6 +861,12 @@ void handle_init(void) {
 	else
 		last_sync_id = 0;
 	
+	if (persist_exists(PERSIST_AUTO_RELAUNCH)) {
+    auto_relaunch = persist_read_bool(PERSIST_AUTO_RELAUNCH);
+  } else {
+    auto_relaunch = true;
+  }
+
 	db_restore_persisted();
 	settings_restore_persisted();
 	
@@ -823,6 +903,10 @@ void handle_init(void) {
 void handle_deinit(void) {
 
   schedule_relaunch_app(WAKE_DEINIT);
+
+  if (popup_timer) {
+    app_timer_cancel(popup_timer);
+  }
 
 	//Unsubscribe callbacks
 	accel_tap_service_unsubscribe();
