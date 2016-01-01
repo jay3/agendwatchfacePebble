@@ -167,10 +167,6 @@ int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relativ
 	uint32_t settings = settings_get_bool_flags();
 
   //APP_LOG(APP_LOG_LEVEL_DEBUG, "create_item_layers %s %s %d %d %d", item->row1text, item->row2text, item->row1design, item->row2design, num_layers);
-#if FORCE_SETTINGS
-  item->row1design = 51;
-  item->row2design = 65;
-#endif
 
   int cur_line_height = first ? line_height0 : line_height;
 	//Create the row(s)
