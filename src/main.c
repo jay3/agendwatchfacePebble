@@ -105,9 +105,9 @@ void set_font_from_settings() {
 			line_height = 16;
 		break;
 	}
-	font0 = fonts_get_system_font(FONT_KEY_GOTHIC_24);
-	font_bold0 = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-	line_height0 = 28;
+	font0 = fonts_get_system_font(FONT_KEY_GOTHIC_28);
+	font_bold0 = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+	line_height0 = 32;
 }
 
 //Calculate from settings how much horizontal space the time layer should take. I know I could let Pebble measure the text width, but I want this offset to be constant for a consistent look
@@ -115,7 +115,7 @@ int get_item_text_offset(uint8_t row_design, uint8_t number_of_times, bool appen
 	if ((row_design/ROW_DESIGN_TIME_TYPE_OFFSET)%0x8 == 0) //no time displayed
 		return 0;
 	
-	int result = (first || font_index == 2) ? 45 : font_index == 1 ? 35 : 28; //start with basic width
+	int result = first ? 55 : font_index == 2 ? 45 : font_index == 1 ? 35 : 28; //start with basic width
 	if (append_am_pm) //add some if am/pm is displayed
 		result+= font_index == 2 ? 20 : font_index == 1 ? 17 : 15;
 	if (number_of_times > 1) { //twice that if actually two times are displayed (like "19:00-20:00")
