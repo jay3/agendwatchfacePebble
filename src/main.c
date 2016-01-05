@@ -31,8 +31,11 @@ int line_height0 = 0;
 int font_index; //contains a two-bit number for the chosen font according to the settings
 
 int num_separators = 0; //number of separators. As many elements will be in the day_separator_layers array
+
+#if DAY_SEPARATOR
 TextLayer **day_separator_layers = 0; //layers for showing weekday
 char **day_separator_texts = 0; //texts on separators
+#endif
 
 Window *window; //the watchface's only window
 Layer *root_layer; //the layer containing the window's content (different from window_get_root_layer(window))
@@ -246,6 +249,7 @@ int create_item_layers(int y, Layer* parent, AgendaItem* item, caltime_t relativ
 	return y; //screen offset where this item's layers end
 }
 
+#if DAY_SEPARATOR
 //Creates separator (like the "Monday" layer, separating today's items from tomorrow's), returns y+[own height]
 int create_day_separator_layer(int i, int y, Layer* parent, caltime_t day) {
 	static char *daystrings[8] = {"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche", "Demain"};
@@ -269,6 +273,7 @@ int create_day_separator_layer(int i, int y, Layer* parent, caltime_t day) {
 	
 	return y+line_height;
 }
+#endif
 
 void display_data() { //(Re-)creates all the layers for items in the database and shows them. (Re-)creates item_layers, item_texts, ... arrays
 	Layer *window_layer = root_layer;
@@ -278,9 +283,10 @@ void display_data() { //(Re-)creates all the layers for items in the database an
 	//Create arrays
 	item_layers = malloc(sizeof(TextLayer*)*db_size()*4); //maximal four layers per item in the db
 	item_texts = malloc(sizeof(char*)*db_size()*4);
+#if DAY_SEPARATOR
 	day_separator_layers = malloc(sizeof(TextLayer*)*db_size()); //maximal one day-separator per item
 	day_separator_texts = malloc(sizeof(char*)*db_size());
-	
+#endif
 	//Figure out font to use
 	set_font_from_settings();
 	
@@ -354,11 +360,11 @@ void remove_displayed_data() { //tidies up anything that display_data() created
 		free(day_separator_layers);
 	if (day_separator_texts != 0)
 		free(day_separator_texts);
-#endif
+  day_separator_layers = 0;
+  day_separator_texts = 0;
+	#endif
 	item_layers = 0;
 	item_texts = 0;
-	day_separator_layers = 0;
-	day_separator_texts = 0;
 }
 
 void handle_no_new_data() { //sync done, no new data
