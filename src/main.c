@@ -7,6 +7,7 @@
 #include <main.h>
 	
 #define DAY_SEPARATOR false
+#define MAX_DISPLAYED_ITEMS 2
 #define WAKE_INIT 1
 #define WAKE_DEINIT 2
 #define WAKE_RESCHEDULE 3
@@ -281,8 +282,8 @@ void display_data() { //(Re-)creates all the layers for items in the database an
 		return;
 	
 	//Create arrays
-	item_layers = malloc(sizeof(TextLayer*)*db_size()*4); //maximal four layers per item in the db
-	item_texts = malloc(sizeof(char*)*db_size()*4);
+	item_layers = malloc(sizeof(TextLayer*) * (db_size() > MAX_DISPLAYED_ITEMS ? MAX_DISPLAYED_ITEMS : db_size()) * 4); //maximal four layers per item in the db
+	item_texts = malloc(sizeof(char*) * (db_size() > MAX_DISPLAYED_ITEMS ? MAX_DISPLAYED_ITEMS : db_size()) * 4);
 #if DAY_SEPARATOR
 	day_separator_layers = malloc(sizeof(TextLayer*)*db_size()); //maximal one day-separator per item
 	day_separator_texts = malloc(sizeof(char*)*db_size());
@@ -328,7 +329,7 @@ void display_data() { //(Re-)creates all the layers for items in the database an
 		
 		previous_item = item;
 		position++;
-		if (position == 2) {
+		if (position == MAX_DISPLAYED_ITEMS) {
 		  break;
 		}
 	}
