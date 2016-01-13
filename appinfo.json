@@ -30,8 +30,8 @@
   },
   "shortName": "Agenda",
   "uuid": "1f366804-f1d2-4288-b71a-708661777887",
-  "versionCode": 11,
-  "versionLabel": "3.5",
+  "versionCode": 12,
+  "versionLabel": "3.6",
   "watchapp": {
     "watchface": false
   },
