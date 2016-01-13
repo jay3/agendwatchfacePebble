@@ -841,12 +841,36 @@ void handle_upbutton_longclick(ClickRecognizerRef recognizer, void *context) {
 void handle_backbutton_click(ClickRecognizerRef recognizer, void *context) {
   // do nothing, to prevent exiting the app (except long press of back button)
 }
+void handle_upbutton_click(ClickRecognizerRef recognizer, void *context) {
+  scroll_position -= 60;
+  if (scroll_position < 0) {
+    scroll_position = 0;
+  }
+  scroll(scroll_position);
+  if (scroll_reset_timer != 0) {
+    app_timer_cancel(scroll_reset_timer);
+  }
+  scroll_reset_timer = app_timer_register(10000, scroll_reset_timer_callback, NULL); //set timer to reset scroll position to 0
+}
+void handle_downbutton_click(ClickRecognizerRef recognizer, void *context) {
+  scroll_position += 60;
+  if (scroll_position > items_biggest_y-168+1) {
+    scroll_position = items_biggest_y-168+1;
+  }
+  scroll(scroll_position);
+  if (scroll_reset_timer != 0) {
+    app_timer_cancel(scroll_reset_timer);
+  }
+  scroll_reset_timer = app_timer_register(10000, scroll_reset_timer_callback, NULL); //set timer to reset scroll position to 0
+}
 
 void click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_BACK, handle_backbutton_click);
   window_multi_click_subscribe(BUTTON_ID_BACK, 2, 2, 300, true, handle_backbutton_click);
   window_long_click_subscribe(BUTTON_ID_SELECT, 500, handle_selectbutton_longclick, NULL);
   window_long_click_subscribe(BUTTON_ID_UP, 500, handle_upbutton_longclick, NULL);
+  window_single_click_subscribe(BUTTON_ID_UP, handle_upbutton_click);
+  window_single_click_subscribe(BUTTON_ID_DOWN, handle_downbutton_click);
 }
 
 //Create all necessary structures, etc.
