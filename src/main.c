@@ -6,8 +6,8 @@
 #include <persist_const.h>
 #include <main.h>
 	
-#define DAY_SEPARATOR false
-#define MAX_DISPLAYED_ITEMS 2
+#define DAY_SEPARATOR true
+#define MAX_DISPLAYED_ITEMS 10
 #define WAKE_INIT 1
 #define WAKE_DEINIT 2
 #define WAKE_RESCHEDULE 3
